@@ -72,10 +72,6 @@ impl COMPort {
             return Err(super::error::last_os_error());
         }
 
-        // create the COMPort here so the handle is getting closed
-        // if one of the calls to `get_dcb()` or `set_dcb()` fails
-        let mut com = COMPort::open_from_raw_handle(handle as RawHandle);
-
         let mut dcb = dcb::get_dcb(handle)?;
         dcb::init(&mut dcb);
         dcb::set_baud_rate(&mut dcb, builder.baud_rate);
@@ -85,6 +81,7 @@ impl COMPort {
         dcb::set_flow_control(&mut dcb, builder.flow_control);
         dcb::set_dcb(handle, dcb)?;
 
+        let mut com = COMPort::open_from_raw_handle(handle as RawHandle);
         com.set_timeout(builder.timeout)?;
         com.port_name = Some(builder.path.clone());
         Ok(com)
@@ -431,6 +428,14 @@ impl SerialPort for COMPort {
             Ok(())
         } else {
             Err(super::error::last_os_error())
+        }
+    }
+
+    fn set_buffer_sizes(&self, in_size: u32, out_size: u32) -> Result<()> {
+        // https://docs.rs/winapi/0.3.8/winapi/um/commapi/fn.SetupComm.html
+        match unsafe { SetupComm(self.handle, in_size, out_size) } {
+            0 => Err(super::error::last_os_error()),
+            _ => Ok(()),
         }
     }
 }
